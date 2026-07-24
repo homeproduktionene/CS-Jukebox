@@ -25,34 +25,31 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: .NET Framework 4.5 Targeting Pack installieren
-        run: choco install netfx-4.5-devpack --yes --no-progress
-        shell: cmd
-
       - name: NuGet restore (gesamte Solution)
         run: nuget restore CS-Jukebox.sln
 
-      - name: Solution mit MSBuild bauen
+      - name: CSGSI bauen (net48 – auf Runner vorinstalliert)
         run: |
-          msbuild CS-Jukebox.sln `
+          msbuild CSGSI/CSGSI.csproj `
             /p:Configuration=Release `
-            /p:Platform="Any CPU" `
-            /nologo `
-            /verbosity:minimal
+            /p:Platform=AnyCPU `
+            /p:TargetFrameworkVersion=v4.8 `
+            /nologo /verbosity:minimal
+
+      - name: dotnet restore (CS-Jukebox)
+        run: dotnet restore CS-Jukebox/CS-Jukebox.csproj
 
       - name: CS-Jukebox publizieren
         run: |
-          msbuild CS-Jukebox/CS-Jukebox.csproj `
-            /p:Configuration=Release `
-            /p:RuntimeIdentifier=win-x64 `
-            /p:SelfContained=true `
-            /p:PublishSingleFile=true `
-            /p:IncludeNativeLibrariesForSelfExtract=true `
-            /p:DebugType=embedded `
-            /p:OutDir=..\publish\ `
-            /t:Publish `
-            /nologo `
-            /verbosity:minimal
+          dotnet publish CS-Jukebox/CS-Jukebox.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=embedded `
+            --no-dependencies `
+            --output publish/
 
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v4
