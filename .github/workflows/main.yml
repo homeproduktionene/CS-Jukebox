@@ -1,0 +1,73 @@
+name: Build & Release CS-Jukebox
+
+on:
+  push:
+    branches: [ master, main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '5.0.x'
+
+      - name: NuGet-Pakete wiederherstellen
+        run: dotnet restore CS-Jukebox.sln
+
+      - name: Build (Release)
+        run: dotnet build CS-Jukebox.sln --configuration Release --no-restore
+
+      - name: Publish – self-contained EXE
+        run: |
+          dotnet publish CS-Jukebox/CS-Jukebox.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            --output publish/
+
+      - name: Artefakte hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: CS-Jukebox-${{ github.ref_name }}
+          path: |
+            publish/CS-Jukebox.exe
+            publish/gamestate_integration_jukebox.cfg
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    # Nur bei einem vX.Y.Z-Tag automatisch ein Release erstellen
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Artefakte herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: CS-Jukebox-${{ github.ref_name }}
+          path: dist/
+
+      - name: ZIP fürs Release packen
+        run: zip -j CS-Jukebox-${{ github.ref_name }}.zip dist/*
+
+      - name: GitHub Release erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          files: CS-Jukebox-${{ github.ref_name }}.zip
+          generate_release_notes: true
