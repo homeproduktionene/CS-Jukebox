@@ -17,18 +17,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: .NET einrichten
+      # SDK 8 (LTS) – kann net5.0-windows noch bauen, ist aber aktuell supported
+      - name: .NET 8 SDK einrichten
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '5.0.x'
+          dotnet-version: '8.0.x'
 
-      - name: NuGet-Pakete wiederherstellen
-        run: dotnet restore CS-Jukebox.sln
+      # MSBuild aus der vorinstallierten Visual-Studio-Installation holen
+      - name: MSBuild einrichten
+        uses: microsoft/setup-msbuild@v2
 
-      - name: Build (Release)
-        run: dotnet build CS-Jukebox.sln --configuration Release --no-restore
+      # .NET Framework 4.5 Targeting Pack – wird von CSGSI.csproj (net45) benötigt
+      - name: .NET Framework 4.5 Targeting Pack installieren
+        run: choco install netfx-4.5-devpack --yes --no-progress
 
-      - name: Publish – self-contained EXE
+      # Klassisches NuGet restore für das alte CSGSI-Projekt (packages.config)
+      - name: NuGet restore (CSGSI – packages.config)
+        run: nuget restore CS-Jukebox.sln
+
+      # SDK-style restore für das Hauptprojekt
+      - name: dotnet restore (CS-Jukebox)
+        run: dotnet restore CS-Jukebox/CS-Jukebox.csproj
+
+      # CSGSI separat mit klassischem MSBuild bauen
+      - name: CSGSI bauen (MSBuild / net45)
+        run: msbuild CSGSI/CSGSI.csproj /p:Configuration=Release /p:Platform=AnyCPU /nologo /verbosity:minimal
+
+      # Hauptprojekt publizieren – CSGSI ist jetzt bereits gebaut
+      - name: CS-Jukebox publizieren (self-contained EXE)
         run: |
           dotnet publish CS-Jukebox/CS-Jukebox.csproj `
             --configuration Release `
@@ -36,6 +52,7 @@ jobs:
             --self-contained true `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=embedded `
             --output publish/
 
       - name: Artefakte hochladen
@@ -50,7 +67,6 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    # Nur bei einem vX.Y.Z-Tag automatisch ein Release erstellen
     if: startsWith(github.ref, 'refs/tags/v')
 
     permissions:
@@ -68,6 +84,9 @@ jobs:
 
       - name: GitHub Release erstellen
         uses: softprops/action-gh-release@v2
+        with:
+          files: CS-Jukebox-${{ github.ref_name }}.zip
+          generate_release_notes: true
         with:
           files: CS-Jukebox-${{ github.ref_name }}.zip
           generate_release_notes: true
