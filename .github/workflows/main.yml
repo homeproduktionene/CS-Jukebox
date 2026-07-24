@@ -31,6 +31,9 @@ jobs:
             /p:TargetFrameworkVersion=v4.8 `
             /nologo /verbosity:minimal
 
+      - name: dotnet restore für win-x64 Runtime
+        run: dotnet restore CS-Jukebox/CS-Jukebox.csproj --runtime win-x64
+
       - name: CS-Jukebox publizieren (nur MSBuild, kein dotnet)
         run: |
           msbuild CS-Jukebox/CS-Jukebox.csproj `
